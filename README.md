@@ -12,8 +12,8 @@ f. The Age (Australia)<br>
 
 This is how the notebooks are organized:
 
-1. Data Acquisition (scrapping & API's), Cleaning, Storing (MongoDB, Pickle)<br>
-2.(a-f) Topic Modeling(NMF)/ Exploration
+1. Data Acquisition (scrapping & API's), Cleaning, Storing (MongoDB, Pickle)
+2. (a-f) Topic Modeling(NMF)/ Exploration
 3. Country by country visualizatios of topics over time
 
 Some of the Interesting Insights:
