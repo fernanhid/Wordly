@@ -1,0 +1,672 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "import matplotlib.pyplot as plt\n",
+    "from bs4 import BeautifulSoup as bf\n",
+    "import requests\n",
+    "import unicodedata\n",
+    "import json\n",
+    "import datetime\n",
+    "import pymongo\n",
+    "\n",
+    "agent = pymongo.Mongoagent()\n",
+    "news_db = agent.news_db\n",
+    "\n",
+    "%matplotlib inline"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# 1. The Guardian"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "from news_scrapping_module.tools import guardian_articles\n",
+    "\n",
+    "final_guardian_lst = []\n",
+    "date = datetime.datetime(2016,9,10)\n",
+    "for day in range(1000):\n",
+    "    date = date - datetime.timedelta(days = 1)\n",
+    "        \n",
+    "    final_guardian_lst.extend(guardian_articles(from_date = date.strftime(\"%Y-%m-%d\")\n",
+    "                                                , to_date = date.strftime(\"%Y-%m-%d\")\n",
+    "                                                , section = 'world'))\n",
+    "    \n",
+    "    \n",
+    "#Mongonews_db    \n",
+    "\n",
+    "new_guardian_collection = news_db.new_guardian_collection\n",
+    "new_guardian_collection.insert_many(final_guardian_lst)\n",
+    "\n",
+    "\n",
+    "# Putting it in a DataFrame\n",
+    "new_guardian_df = pd.DataFrame({'article': [i['article'] for i in final_guardian_lst],\n",
+    "                              'date': [datetime.datetime.strptime(i['release_date'].split('T')[0], '%Y-%m-%d') for i in final_guardian_lst],\n",
+    "                               'title': [i['title'] for i in final_guardian_lst]})\n",
+    "\n",
+    "new_guardian_df.drop_duplicates(inplace = True)\n",
+    "new_guardian_df.reset_index(drop = True, inplace = True)\n",
+    "\n",
+    "new_guardian_df['year'] = [i.year for i in new_guardian_df['date']]\n",
+    "new_guardian_df['month']= [i.month for i in new_guardian_df['date']]\n",
+    "new_guardian_df['day']= [i.day for i in new_guardian_df['date']]\n",
+    "\n",
+    "\n",
+    "#Saving it\n",
+    "new_guardian_df.to_pickle('new_guardian_df.pkl')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "collapsed": true
+   },
+   "source": [
+    "# 2. The Age Australia"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "# Used the wayback machine!\n",
+    "url = 'https://web.archive.org/web/*/http://www.theage.com.au/world'\n",
+    "data = bf(requests.get(url).text, 'lxml')\n",
+    "lst = []\n",
+    "for i in data.find_all('div', class_ = 'day'):\n",
+    "    try:\n",
+    "        lst.append('https://web.archive.org' + str(i.a.get('href')))\n",
+    "    except:\n",
+    "        pass\n",
+    "    \n",
+    "    \n",
+    "    \n",
+    "master_lst = []\n",
+    "for i in lst:\n",
+    "    soup = bf(requests.get(i).text, 'lxml')\n",
+    "    try:\n",
+    "        master_lst.append(soup.find_all('div', class_ = 'media')[0].a.get('href').split('http://')[1])\n",
+    "    except:\n",
+    "        pass\n",
+    "    for section in soup.find_all('div', class_=\"stories-list section\"):\n",
+    "        try:\n",
+    "            for o in section.find_all('a'):\n",
+    "                master_lst.append(o.get('href').split('http://')[1])          \n",
+    "        except:\n",
+    "            pass\n",
+    "\n",
+    "master_lst = list(set(master_lst))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "# Getting the Articles"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "articles = []\n",
+    "for i in master_lst:\n",
+    "    temp_dict = {}\n",
+    "    try:\n",
+    "        soup = bf(requests.get(i).text, 'lxml')\n",
+    "        temp_dict['date'] = datetime.strptime(soup.time.text, '%B %d %Y')\n",
+    "        title = soup.title.text\n",
+    "        temp_dict['title'] =unicodedata.normalize('NFKD', title).encode('ascii', 'ignore')\n",
+    "        article = ' '.join([i.text for i in soup.find('div', class_=\"article__body\").find_all('p')])\n",
+    "        temp_dict['article'] = unicodedata.normalize('NFKD', article).encode('ascii', 'ignore')\n",
+    "        articles.append(temp_dict)\n",
+    "    except:\n",
+    "        pass\n",
+    "    "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "## Mongo news_db"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "\n",
+    "the_age = news_db.the_age_collection\n",
+    "the_age.insert_many(articles)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "#DF"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "the_age_df = pd.DataFrame({'article': [i['article'] for i in articles],\n",
+    "                              'date': [i['date'] for i in articles],\n",
+    "                               'title': [i['title'] for i in articles]})\n",
+    "\n",
+    "the_age_df.drop_duplicates(inplace = True)\n",
+    "the_age_df.reset_index(drop = True, inplace = True)\n",
+    "\n",
+    "the_age_df['year'] = [i.year for i in the_age_df['date']]\n",
+    "the_age_df['month']= [i.month for i in the_age_df['date']]\n",
+    "the_age_df['day']= [i.day for i in the_age_df['date']]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "the_age_df.to_pickle('the_age_df.pkl')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# 3. La Republica"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "url_lst = []\n",
+    "for i in range(2, 1493):\n",
+    "    url_lst.append('http://larepublica.pe/mundo/pag'+str(i))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "new_complete_article_urls = []\n",
+    "count = 0\n",
+    "for url in url_lst:\n",
+    "    page_soup = bf(requests.get(url).text, 'lxml')\n",
+    "    for i in page_soup.find_all('a', class_=\"atm-title\"):\n",
+    "        new_complete_article_urls.append(i.get('href'))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "count = 0\n",
+    "#Get the information for all the articles\n",
+    "complete_articles = []\n",
+    "for article in new_complete_article_urls:\n",
+    "    temp_dict = {}\n",
+    "    count += 1\n",
+    "    try:\n",
+    "        article_soup = bf(requests.get(article).text, 'lxml')\n",
+    "        temp_dict['title'] = unicodedata.normalize('NFKD', article_soup.title.text).encode('ascii', 'ignore').replace('\\n', '').split('|')[0]\n",
+    "        temp_dict['newspaper'] = 'La Republica Peru'\n",
+    "        body = unicodedata.normalize('NFKD', article_soup.find('div', id=\"note-body\").text).encode('ascii', 'ignore').replace('\\n', '').replace('\\t', '')\n",
+    "        temp_dict['article'] = body\n",
+    "        temp_dict['date'] = article_soup.find('p', class_=\"nota-date\").text\n",
+    "        complete_articles.append(temp_dict)\n",
+    "        \n",
+    "    except:\n",
+    "        pass\n",
+    "        \n",
+    "    if count == 0:\n",
+    "        print 'Downloaded ' + str(count) + ' files'"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "# Into Mongonews_db"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "la_republica_collection = news_db.la_republica_collection\n",
+    "la_republica_collection.insert_many(complete_articles)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "republica_df = pd.DataFrame({'article': [i['article'] for i in complete_articles],\n",
+    "                   'title': [i['title'].replace('\\n', '') for i in complete_articles],\n",
+    "                  'release_date': [i['date'] for i in complete_articles],\n",
+    "                  'newspaper':[i['newspaper'] for i in complete_articles] }\n",
+    "                 )[['title', 'release_date','newspaper','article']]\n",
+    "\n",
+    "republica_df.to_pickle('la_republica_final_df.pkl')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# China Today"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "# A. Make all the urls for the pages\n",
+    "america_url = 'http://www.chinadaily.com.cn/world/america_'\n",
+    "latin_url = 'http://www.chinadaily.com.cn/world/latinamerica_'\n",
+    "europe_url = 'http://www.chinadaily.com.cn/world/europe_'\n",
+    "africa_url = 'http://www.chinadaily.com.cn/world/africa_'\n",
+    "middle_east_url = 'http://www.chinadaily.com.cn/world/middle_east_.'\n",
+    "asia_url = 'http://www.chinadaily.com.cn/world/asia_pacific_'\n",
+    "\n",
+    "url_lst = ['http://www.chinadaily.com.cn/world/america.html',\n",
+    "          'http://www.chinadaily.com.cn/world/latinamerica.html',\n",
+    "          'http://www.chinadaily.com.cn/world/europe.html',\n",
+    "          'http://www.chinadaily.com.cn/world/africa.html',\n",
+    "          'http://www.chinadaily.com.cn/world/middle_east.html',\n",
+    "          'http://www.chinadaily.com.cn/world/asia_pacific.html']\n",
+    "for i in range(2, 201):\n",
+    "    url_lst.append(america_url + str(i) + '.html')\n",
+    "    url_lst.append(latin_url + str(i) + '.html')\n",
+    "    url_lst.append(europe_url + str(i) + '.html')\n",
+    "    url_lst.append(africa_url + str(i) + '.html')\n",
+    "    url_lst.append(middle_east_url + str(i) + '.html')\n",
+    "    url_lst.append(asia_url + str(i) + '.html')\n",
+    "\n",
+    "    \n",
+    "    \n",
+    "# B. get all the urls for all the articles\n",
+    "count = 0\n",
+    "new_complete_article_urls = []\n",
+    "\n",
+    "for url in url_lst:\n",
+    "    count += 1\n",
+    "    page_soup = bf(requests.get(url).text, 'lxml')\n",
+    "    if count % 500 == 0:\n",
+    "        print count\n",
+    "    for i in page_soup.find_all('div', class_=\"floatlft mr10\"):\n",
+    "        new_complete_article_urls.append('http://www.chinadaily.com.cn/world/' + i.a.get('href'))\n",
+    "        \n",
+    "        \n",
+    "        \n",
+    "#Get the information for all the articles\n",
+    "count = 0 \n",
+    "complete_articles = []\n",
+    "for article in new_complete_article_urls:\n",
+    "    temp_dict = {}\n",
+    "    article_soup = bf(requests.get(article).text, 'lxml')\n",
+    "    temp_dict['title'] = article_soup.title.text\n",
+    "    temp_dict['newspaper'] = 'China Daily'\n",
+    "    article = unicodedata.normalize('NFKD',article_soup.find(id = 'Content').text.replace('\\n', ' ')).encode('ascii', 'ignore')\n",
+    "    temp_dict['article'] = article.strip()\n",
+    "    temp_dict['date'] = article_soup.find('span',class_=\"greyTxt6 block mb15\" ).text.split(': ')[1].strip()\n",
+    "    complete_articles.append(temp_dict)\n",
+    "\n",
+    "    \n",
+    "# Mongonews_db\n",
+    "china_collection = news_db.china_collection\n",
+    "china_collection.insert_many(complete_articles)\n",
+    "\n",
+    "#Make a Dataframe\n",
+    "by_article = []\n",
+    "for i in complete_articles:\n",
+    "    try:\n",
+    "        by_article.append(i['article'])\n",
+    "    except:\n",
+    "        by_article.append('none')\n",
+    "\n",
+    "by_date = []        \n",
+    "for i in complete_articles:\n",
+    "    try:\n",
+    "        by_date.append(datetime.datetime.strptime(i['date'].split(' ')[0], \"%Y-%m-%d\"))\n",
+    "    except:\n",
+    "        by_date.append('none')\n",
+    "    \n",
+    "\n",
+    "df = pd.DataFrame({'article': by_article,\n",
+    "                   'title': [i['title'].replace('\\n', '') for i in complete_articles],\n",
+    "                  'release_date': by_date,\n",
+    "                  'newspaper':[i['newspaper'] for i in complete_articles] }\n",
+    "                 )[['title', 'release_date','newspaper','article']]\n",
+    "\n",
+    "\n",
+    "df.to_pickle('china_today_final_df.pkl')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "collapsed": true
+   },
+   "source": [
+    "# New York Times"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "final_nyt_lst = []\n",
+    "start_date = datetime.datetime(2016,8,28)\n",
+    "end_date = datetime.datetime(2016,8,29)\n",
+    "\n",
+    "count = 0\n",
+    "for day in range(1500):\n",
+    "    start_date = start_date - datetime.timedelta(days = 1)\n",
+    "    end_date = end_date - datetime.timedelta(days = 1)\n",
+    "    \n",
+    "    for page in range(5):\n",
+    "        count += 1\n",
+    "        if count % 500 == 0: print count\n",
+    "        try:\n",
+    "            params = {'api-key': '692b06ab1a5646f2a30ecd21c35235a8', \n",
+    "                      'begin_date': start_date.strftime(\"%Y%m%d\"),\n",
+    "                      'end_date': end_date.strftime(\"%Y%m%d\"),\n",
+    "                      'fq': \"section_name:(\\\"World\\\") AND source:(\\\"The New York Times\\\")\",\n",
+    "                      'page':page}\n",
+    "\n",
+    "            url = requests.get('https://api.nytimes.com/svc/search/v2/articlesearch.json', params=params)\n",
+    "            data = json.loads(url.text)\n",
+    "\n",
+    "            for i in range(10):\n",
+    "                art = {}\n",
+    "                try:\n",
+    "                    soup = bf(requests.get(data['response']['docs'][i]['web_url']).text, 'lxml')\n",
+    "                    x = data['response']['docs'][i]\n",
+    "                    art['pub_date'] = x['pub_date']\n",
+    "                    art['word_count'] =x['word_count']\n",
+    "                    art['section'] = x['section_name']\n",
+    "                    art['sub_section_name'] = x['subsection_name']\n",
+    "                    art['source'] = x['source']\n",
+    "                    art['news_desk'] = x['news_desk']\n",
+    "\n",
+    "                    art['name'] = x['byline']['original']\n",
+    "\n",
+    "\n",
+    "                    temp =  ' '.join([(' ' + i.text) for i in soup.find_all('p', class_=\"story-body-text\")]).replace('\\n', ' ').strip()\n",
+    "                    art['article'] =  unicodedata.normalize('NFKD', temp).encode('ascii', 'ignore')\n",
+    "                    art['title'] = unicodedata.normalize('NFKD', soup.title.text).encode('ascii', 'ignore')\n",
+    "                    final_nyt_lst.append(art)\n",
+    "                except:\n",
+    "                    pass\n",
+    "        except:\n",
+    "            pass\n",
+    "        \n",
+    "        \n",
+    "        \n",
+    "#Put it to MongoDB\n",
+    "nyt_collection = news_db.nyt_collection\n",
+    "nyt_collection.insert_many(final_nyt_lst)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "#Make a Dataframe\n",
+    "word_count = []\n",
+    "for i in nyt_articles:\n",
+    "    try:\n",
+    "        word_count.append(i['word_count'])\n",
+    "    except:\n",
+    "        word_count.append('none')\n",
+    "\n",
+    "\n",
+    "df = pd.DataFrame({'article': [i['article'] for i in nyt_articles],\n",
+    "                   'title': [i['title'] for i in nyt_articles],\n",
+    "                  'release_date': [datetime.datetime.strptime(i['pub_date'].split('T')[0], \"%Y-%m-%d\") for i in nyt_articles],\n",
+    "                   'section': [i['section'] for i in nyt_articles],\n",
+    "                   'sub_section': [i['sub_section_name'] for i in nyt_articles] ,\n",
+    "                  'word_count': word_count}\n",
+    "                 )[['title', 'release_date','section', 'sub_section', 'word_count','article']]\n",
+    "\n",
+    "\n",
+    "df['day'] = [i.day for i in df.release_date]\n",
+    "df['month'] = [i.month for i in df.release_date]\n",
+    "df['year'] = [i.year for i in df.release_date]\n",
+    "\n",
+    "\n",
+    "# Clean Up All Retrospectives\n",
+    "final_df = df.iloc[:0]\n",
+    "for i in range(len(df.iloc[:])):\n",
+    "    try:\n",
+    "        x = int(df.title[i].split(\":\")[0]) \n",
+    "    except:\n",
+    "        final_df = final_df.append(df.iloc[i])\n",
+    "        \n",
+    "final_df.to_pickle(\"nyt_final_df.pkl\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Times of India"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "\n",
+    "# Get all the page urls\n",
+    "page_urls = ['http://timesofindia.indiatimes.com/world/pakistan/',\n",
+    "        'http://timesofindia.indiatimes.com/world/south-asia/',\n",
+    "        'http://timesofindia.indiatimes.com/world/uk/',\n",
+    "        'http://timesofindia.indiatimes.com/world/nri/',\n",
+    "        'http://timesofindia.indiatimes.com/world/europe/',\n",
+    "        'http://timesofindia.indiatimes.com/world/china/',\n",
+    "        'http://timesofindia.indiatimes.com/world/middle-east/',\n",
+    "        'http://timesofindia.indiatimes.com/world/rest-of-world/']\n",
+    "\n",
+    "\n",
+    "for i in range(2,11):\n",
+    "        page_urls.append('http://timesofindia.indiatimes.com/world/pakistan/' + str(i))\n",
+    "        page_urls.append('http://timesofindia.indiatimes.com/world/south-asia/' + str(i))\n",
+    "        page_urls.append('http://timesofindia.indiatimes.com/world/uk/' + str(i))\n",
+    "        page_urls.append('http://timesofindia.indiatimes.com/world/nri/' + str(i))\n",
+    "        page_urls.append('http://timesofindia.indiatimes.com/world/europe/' + str(i))\n",
+    "        page_urls.append('http://timesofindia.indiatimes.com/world/china/' + str(i))\n",
+    "        page_urls.append('http://timesofindia.indiatimes.com/world/middle-east/' + str(i))\n",
+    "        page_urls.append('http://timesofindia.indiatimes.com/world/rest-of-world/' + str(i))\n",
+    "        \n",
+    "        \n",
+    "#Get the Url for the Articles        \n",
+    "article_urls = []\n",
+    "for url in page_urls:\n",
+    "    soup = bf(requests.get(url).text, 'lxml')\n",
+    "    try:\n",
+    "        for i in soup.find('div', class_=\"ct1stry\").find_all('a'):\n",
+    "            try:\n",
+    "                article_urls.append('http://timesofindia.indiatimes.com/world/europe' + i.get('href'))\n",
+    "            except:\n",
+    "                pass\n",
+    "    except:\n",
+    "        pass   \n",
+    "article_urls = list(set(article_urls))\n",
+    "\n",
+    "\n",
+    "#Get the information from the articles\n",
+    "toi_articles = []\n",
+    "for article_url in article_urls:\n",
+    "    temp_dict = {}\n",
+    "    soup = bf(requests.get(article_url).text, 'lxml')\n",
+    "    try:\n",
+    "        temp_dict['title'] = soup.find('h1', class_ = 'heading1').text\n",
+    "        date = ','.join(soup.find('span', itemprop=\"datePublished\").text.split(',')[:2])\n",
+    "        temp_dict['date'] = datetime.strptime(date, '%b %d, %Y')\n",
+    "        temp_dict['article'] = soup.find('div', class_ = 'section1').text.replace('\\n', '').strip()\n",
+    "        toi_articles.append(temp_dict)\n",
+    "    except:\n",
+    "        pass\n",
+    "    \n",
+    "\n",
+    "#Put it in Mongo    \n",
+    "india_time = news_db.india_time\n",
+    "india_time.insert_many(toi_articles)\n",
+    "\n",
+    "\n",
+    "# Put it in a Dataframe\n",
+    "toi_df = pd.DataFrame({'title': [i['title'] for i in toi_articles],\n",
+    "                     'article': [i['article'] for i in toi_articles],\n",
+    "                     'date': [i['date'] for i in toi_articles]})\n",
+    "\n",
+    "\n",
+    "#Pickle the Dataframe\n",
+    "toi_df.to_pickle('indian_final.pkl')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "anaconda-cloud": {},
+  "kernelspec": {
+   "display_name": "Python [conda env:datasci27]",
+   "language": "python",
+   "name": "conda-env-datasci27-py"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 2
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython2",
+   "version": "2.7.12"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 1
+}
