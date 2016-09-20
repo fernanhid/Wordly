@@ -10,13 +10,14 @@ d. Times of India (India)<br>
 e. China Today (China)<br>
 f. The Age (Australia)<br>
 
-This is how the notebooks are organized by:
+This is how the notebooks are organized:
 
-1. Data Acquisition (scrapping & API's), Cleaning, Storing (MongoDB, Pickle)
+1. Data Acquisition (scrapping & API's), Cleaning, Storing (MongoDB, Pickle)<br>
 2.(a-f) Topic Modeling(NMF)/ Exploration
 3. Country by country visualizatios of topics over time
 
 Some of the Interesting Insights:
+
 1. India focused on Brexit before anyone else
 2. Peru and the U.S. focused on the arrival of Pope Francis
 3. The U.K. covered Zika the most even though it's in the least danger
