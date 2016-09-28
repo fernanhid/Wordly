@@ -16,7 +16,7 @@ This is how the notebooks are organized:
 2. (a-f) Topic Modeling(NMF)/ Exploration
 3. Country by country visualizations of topics over time
 
-Some of the Interesting Insights:
+Some of the Interesting Insights I found:
 
 1. India focused on Brexit before anyone else
 2. Peru and the U.S. focused on the arrival of Pope Francis
