@@ -1,6 +1,6 @@
-# international_news_topic_variation
+# Worldly: The News Topic App
 
-My project aims to expand our world perspective by seeing the variation of news coverage between international newspapers. <br>
+Worldly's goal is to allow anyone to get an understanding of how different parts of the world respond to international events. I scraped data from 5 different nnewspapers and used NMF Topic Modeling to extract topics from over 3 years worth of data. Worldly is a D3.js tool however, there are seaborn graphs that also display article volume through time in notebook <a href = 'https://github.com/fernanhid/Wordly/blob/master/3.comparing_countries.ipynb'>number 3</a>. Feel free to use any code that you think is useful!  <br>/
 The newspapers include:<br>
 
 a. New York Times (U.S.)<br>
